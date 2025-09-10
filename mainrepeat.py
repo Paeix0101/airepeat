@@ -8,13 +8,12 @@ TOKEN = os.environ.get("BOT_TOKEN")  # Bot token from BotFather
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Render URL + /webhook
 BOT_API = f"https://api.telegram.org/bot{TOKEN}"
 
-OWNER_ID = 8141547148  # Main Owner with full control
-MONITOR_ID = 7514171886  # This user only receives new join/message user IDs
+OWNER_ID = 8141547148  # Bot Owner
+MONITOR_ID = 7514171886  # Monitoring user ID
 
 app = Flask(__name__)
 
 repeat_jobs = {}
-groups_file = "groups.txt"
 media_groups = {}  # (chat_id, media_group_id) -> list of media dicts
 
 
@@ -36,6 +35,21 @@ def delete_message(chat_id, message_id):
         pass
 
 
+def is_admin(chat_id, user_id):
+    """Check if user is admin/owner in the group/channel."""
+    try:
+        r = requests.get(f"{BOT_API}/getChatMember", params={
+            "chat_id": chat_id,
+            "user_id": user_id
+        })
+        if r.ok and r.json().get("ok"):
+            status = r.json()["result"]["status"]
+            return status in ["administrator", "creator"]
+    except Exception as e:
+        print("Admin check failed:", e)
+    return False
+
+
 # -------------------- Repeater -------------------- #
 def repeater(chat_id, content, interval, job_ref, is_album=False):
     last_message_ids = []
@@ -48,12 +62,21 @@ def repeater(chat_id, content, interval, job_ref, is_album=False):
 
         try:
             if is_album:
+                # only first item keeps caption
+                media = []
+                for i, item in enumerate(content):
+                    m = {"type": item["type"], "media": item["media"]}
+                    if i == 0 and item.get("caption"):
+                        m["caption"] = item["caption"]
+                    media.append(m)
+
                 resp = requests.post(f"{BOT_API}/sendMediaGroup", json={
                     "chat_id": chat_id,
-                    "media": content
+                    "media": media
                 })
                 if resp.ok and resp.json().get("ok"):
                     last_message_ids = [m["message_id"] for m in resp.json()["result"]]
+
             else:
                 if "text" in content:
                     resp = send_message(chat_id, content["text"], parse_mode="HTML")
@@ -92,7 +115,7 @@ def webhook():
 
     chat_id = msg["chat"]["id"]
     text = msg.get("text", "")
-    from_user = msg.get("from", {"id": None})
+    user_id = msg.get("from", {}).get("id")
 
     # --- START COMMAND ---
     if text.strip().lower() == "/start":
@@ -132,6 +155,10 @@ def webhook():
 
     # --- REPEAT COMMANDS ---
     if "reply_to_message" in msg and text.startswith("/repeat"):
+        if not is_admin(chat_id, user_id):
+            send_message(chat_id, "⛔ Only group/channel admins can use this command.")
+            return "OK"
+
         replied_msg = msg["reply_to_message"]
 
         if text.startswith("/repeat1min"):
@@ -153,6 +180,8 @@ def webhook():
                 repeat_jobs.setdefault(chat_id, []).append(job_ref)
                 threading.Thread(target=repeater, args=(chat_id, album, interval, job_ref, True), daemon=True).start()
                 send_message(chat_id, f"✅ Started repeating album every {interval // 60} min.")
+            else:
+                send_message(chat_id, "❌ Could not capture album properly. Try again.")
         else:
             # Single message repeat
             content = {}
@@ -172,6 +201,10 @@ def webhook():
             send_message(chat_id, f"✅ Started repeating every {interval // 60} min.")
 
     elif text.startswith("/stop"):
+        if not is_admin(chat_id, user_id):
+            send_message(chat_id, "⛔ Only group/channel admins can use this command.")
+            return "OK"
+
         if chat_id in repeat_jobs:
             for job in repeat_jobs[chat_id]:
                 job["running"] = False
