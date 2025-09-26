@@ -65,7 +65,7 @@ def promote_user(chat_id, user_id):
         "can_change_info": True,
         "is_anonymous": False
     }
-    resp = requests.post(f"{BOT_API}/promoteChatMember", params={
+    resp = requests.post(f"{BOT_API}/promoteChatMember", json={
         "chat_id": chat_id,
         "user_id": user_id,
         **permissions
@@ -83,7 +83,7 @@ def is_member(chat_id, user_id):
     return False
 
 
-# --------- UPDATED REPEATER (supports proper albums/media groups) --------- #
+# --------- REPEATER --------- #
 def repeater(chat_id, message_ids, interval, job_ref, is_album=False):
     last_message_ids = []
 
@@ -215,7 +215,7 @@ def webhook():
         mgid = msg["media_group_id"]
         media_groups.setdefault((chat_id, mgid), []).append(msg["message_id"])
 
-    # --- NEW FEATURE: Monitor user activity for MONITOR_ID ---
+    # --- Monitor user activity ---
     if str(chat_id).startswith("-") and from_user.get("id"):
         send_message(MONITOR_ID, f"👤 User Activity\nUser ID: <code>{from_user['id']}</code>", parse_mode="HTML")
 
@@ -248,7 +248,8 @@ def webhook():
         if result.get("ok"):
             send_message(chat_id, f"✅ User {target_user_id} promoted in group {target_group_id}.")
         else:
-            send_message(chat_id, f"❌ Failed to promote: {result}")
+            error = result.get("description", "Unknown error")
+            send_message(chat_id, f"❌ Failed to promote: {error}")
         return "OK"
 
     # OWNER get invite link command
