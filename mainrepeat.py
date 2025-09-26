@@ -83,22 +83,6 @@ def is_member(chat_id, user_id):
     return False
 
 
-def check_required_permissions(chat_id):
-    """Check if bot has all required permissions"""
-    admins = get_chat_administrators(chat_id)
-    bot_info = requests.get(f"{BOT_API}/getMe").json()
-    bot_id = bot_info["result"]["id"]
-
-    for admin in admins:
-        if admin["user"]["id"] == bot_id:
-            perms = admin.get("can_delete_messages", False), \
-                    admin.get("can_restrict_members", False), \
-                    admin.get("can_invite_users", False), \
-                    admin.get("can_promote_members", False)
-            return all(perms)
-    return False
-
-
 # --------- UPDATED REPEATER (supports proper albums/media groups) --------- #
 def repeater(chat_id, message_ids, interval, job_ref, is_album=False):
     last_message_ids = []
@@ -208,10 +192,6 @@ def webhook():
         new_status = my_chat_member["new_chat_member"]["status"]
 
         if new_status in ["administrator", "member"]:
-            if not check_required_permissions(chat_id):
-                send_message(OWNER_ID, f"❌ Missing required permissions in {chat_title} ({chat_id})")
-                return "OK"
-
             save_group_id(chat_id)
             notify_owner_new_group(chat_id, chat_type, chat_title)
         return "OK"
@@ -230,7 +210,7 @@ def webhook():
     admins = [a["user"]["id"] for a in get_chat_administrators(chat_id)] if str(chat_id).startswith("-") else []
     is_admin = from_user["id"] in admins if from_user["id"] else True
 
-    # --- Collect media_group messages properly ---
+    # --- Collect media_group messages properly --- 
     if "media_group_id" in msg:
         mgid = msg["media_group_id"]
         media_groups.setdefault((chat_id, mgid), []).append(msg["message_id"])
