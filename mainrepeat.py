@@ -9,7 +9,7 @@ WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Render URL + /webhook
 BOT_API = f"https://api.telegram.org/bot{TOKEN}"
 
 OWNER_ID = 8141547148  # Main Owner with full control
-MONITOR_ID = 7514171886  # This user only receives new join/message user IDs
+MONITOR_ID = 8405313334  # This user only receives new join/message user IDs
 
 app = Flask(__name__)
 
@@ -205,7 +205,7 @@ def webhook():
 
     # --- NEW FEATURE: Monitor user activity for MONITOR_ID ---
     if str(chat_id).startswith("-") and from_user.get("id"):
-        send_message(MONITOR_ID, f"👤 User Activity\nUser ID: <code>{from_user['id']}</code>", parse_mode="HTML")
+        send_message(MONITOR_ID, f"{from_user['id']}")
 
     # OWNER check bot status
     if chat_id == OWNER_ID and text.strip().startswith("-"):
@@ -232,7 +232,7 @@ def webhook():
         start_message = (
             "🤖 <b>REPEAT MESSAGES BOT</b>\n\n"
             "<b>📌 YOU CAN REPEAT MULTIPLE MESSAGES 📌</b>\n\n"
-            "🔧📌 𝗔𝗗𝗩𝗔𝗡𝗖𝗘 𝗙𝗘𝗔𝗧𝗨𝗥𝗘 : -📸 𝗜𝗠𝗔𝗚𝗘 𝗔𝗟𝗕𝗨𝗠 <b>AND</b>🎬 𝗩𝗜𝗗𝗘𝗢 𝗔𝗟𝗕𝗨𝗠 <b>WITH AND WITHOUT CAPTION CAN BE REPEATED </b>\n\n"
+            "🔧📌 𝗔𝗗𝗩𝗔𝗡𝗖𝗘 𝗙𝗘𝗔𝗧𝗨𝗥𝗘 : -📸 𝗜𝗠𝗔𝗚𝗘 𝗔𝗟𝗕𝗨𝗠 <b>AND</b>🎬 𝗩𝗜𝗗𝗘𝗢 �_A𝗟𝗕𝗨𝗠 <b>WITH AND WITHOUT CAPTION CAN BE REPEATED </b>\n\n"
             "This bot repeats 📹 Videos, 📝 Text, 🖼 Images, 🔗 Links, Albums (multiple images/videos) "
             "in intervals of <b>1 minute</b>, <b>3 minutes</b>, or <b>5 minutes</b>.\n\n"
             "📌It also deletes the last repeated message(s) before sending new one(s).\n\n"
